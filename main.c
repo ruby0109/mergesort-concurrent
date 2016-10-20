@@ -142,7 +142,23 @@ static void *task_run(void *data)
 {
     (void) data;
     while (1) {
+        /* Threads snatch the lock*/
+        pthread_mutex_lock(&(pool->queue->mutex));
+
+        /* If the task queue is empty then unlock,
+           and let other threads come in to be swapped to the wait queue.
+           When signal comes, threads wake up and own the lock one by one*/
+        while( pool->queue->size == 0) {
+            pthread_cond_wait(&(pool->queue->cond), &(pool->queue->mutex));
+        }
+        if (pool->queue->size == 0) break;
+
+        /* Thread grab the task*/
         task_t *_task = tqueue_pop(pool->queue);
+
+        /* Unlock */
+        pthread_mutex_unlock(&(pool->queue->mutex));
+
         if (_task) {
             if (!_task->func) {
                 tqueue_push(pool->queue, _task);
@@ -214,17 +230,18 @@ int main(int argc, char const *argv[])
     _task->arg = the_list;
     tqueue_push(pool->queue, _task);
 
+    /* release thread pool */
+    tpool_free(pool);
+
 #if defined(TEST)
     clock_gettime(CLOCK_REALTIME, &end);
     FILE *output;
     cpu_time=diff_in_second(start,end);
     output = fopen("output.txt","a+");
-    fprintf(output, "Excution time: %lf second", cpu_time);
+    fprintf(output, "Excution time: %lf second\n", cpu_time);
     fclose(output);
 #endif
 
-    /* release thread pool */
-    tpool_free(pool);
     return 0;
 }
 

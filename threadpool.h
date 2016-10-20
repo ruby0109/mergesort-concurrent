@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-/* 
+/*
  * Struct task_t : Contain the function and arguments for the task.
  * *next and *prev : For the double linked list structure.
- */ 
+ */
 typedef struct _task {
     void (*func)(void *);
     void *arg;
@@ -17,8 +17,7 @@ typedef struct _task {
 
 int task_free(task_t *the_task);
 
-/*
- * Struct tqueue_t : Record the double linked list structrue of the task.
+/* Struct tqueue_t : Record the double linked list structrue of the task.
  * *head, *tail : Record the head and tail of the structure.
  * size : the size of the linked list structure.
  */
