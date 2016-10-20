@@ -6,7 +6,6 @@
 #include "threadpool.h"
 #include "list.h"
 #define USAGE "usage: ./sort [ThrdCount] [InputFile]\n"
-#define TEST 1
 
 struct {
     pthread_mutex_t mutex;
@@ -109,7 +108,6 @@ void cut_func(void *data)
     int cut_count = data_context.cut_ThrdCount;
     if (Llist->size > 1 && cut_count < max_cut) {
         ++data_context.cut_ThrdCount;
-        printf("cut_ThrdCount %d\n", data_context.cut_ThrdCount);
         pthread_mutex_unlock(&(data_context.mutex));
 
         /* cut list */
@@ -133,7 +131,6 @@ void cut_func(void *data)
         tqueue_push(pool->queue, _task);
     } else {
         pthread_mutex_unlock(&(data_context.mutex));
-        printf("main thread\n");
         merge(merge_sort(Llist));
     }
 }
@@ -210,7 +207,6 @@ int main(int argc, char const *argv[])
 
     max_cut = ThrdCount * (ThrdCount <= DataCount) +
               DataCount * (ThrdCount > DataCount) - 1;
-    printf("max cut %d\n", max_cut);
     /*========== Thread Pool Initialization==========*/
     /* initialize tasks inside thread pool */
     pthread_mutex_init(&(data_context.mutex), NULL);
