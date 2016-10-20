@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -std=gnu99 -Wall -g -pthread
-OBJS = list.o threadpool.o main.o
+OBJS = list.o threadpool.o main.o 
 
 .PHONY: all clean test
 
@@ -20,7 +20,8 @@ sort: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) -rdynamic
 
 clean:
-	rm -f $(OBJS) sort
+	rm -f $(OBJS) sort \
+	      sorted.txt input.txt output.txt
 	@rm -rf $(deps)
 
 -include $(deps)

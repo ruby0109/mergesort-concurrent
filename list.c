@@ -1,13 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "list.h"
 
-static node_t *node_new(val_t val, node_t *next)
+static node_t *NewNode(val_t val, node_t *next)
 {
     /* allocate node */
     node_t *node = malloc(sizeof(node_t));
-    node->data = val;
+    strcpy(node->data,val);
     node->next = next;
     return node;
 }
@@ -27,7 +28,7 @@ llist_t *list_new()
  */
 int list_add(llist_t *list, val_t val)
 {
-    node_t *e = node_new(val, NULL);
+    node_t *e = NewNode(val, NULL);
     e->next = list->head;
     list->head = e;
     list->size++;
@@ -51,11 +52,11 @@ node_t *list_nth(llist_t *list, uint32_t idx)
 void list_print(llist_t *list)
 {
     node_t *cur = list->head;
-    /* FIXME: we have to validate the sorted results in advance. */
-    printf("\nsorted results:\n");
+    FILE *output;
+    output = fopen("sorted.txt","a");
     while (cur) {
-        printf("[%ld] ", cur->data);
+        fprintf(output, "%s\n", cur->data);
         cur = cur->next;
     }
-    printf("\n");
+    fclose(output);
 }

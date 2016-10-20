@@ -21,7 +21,7 @@ make
 
 ## Run
 ```bash
-./sort [thread count] [data count]
+./sort [thread count] [input file]
 ```
 Then input integer data line-by-line
 
