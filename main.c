@@ -6,6 +6,7 @@
 #include "threadpool.h"
 #include "list.h"
 #define USAGE "usage: ./sort [ThrdCount] [InputFile]\n"
+#define TASK_QUEUE_SIZE 256
 
 struct {
     pthread_mutex_t mutex;
@@ -16,7 +17,7 @@ static llist_t *tmp_list;
 static llist_t *the_list = NULL;
 
 static int ThrdCount = 0, DataCount = 0, max_cut = 0;
-static tpool_t *pool = NULL;
+static threadpool_t *pool = NULL;
 
 #if defined(TEST)
 static double diff_in_second(struct timespec t1, struct timespec t2)
@@ -87,16 +88,11 @@ void merge(void *data)
             tmp_list = _list;
         } else {
             tmp_list = NULL;
-            task_t *_task = (task_t *) malloc(sizeof(task_t));
-            _task->func = merge;
-            _task->arg = MergeList(_list, _t);
-            tqueue_push(pool->queue, _task);
+            tqueue_push(pool, merge, MergeList(_list,_t));
         }
     } else {
         the_list = _list;
-        task_t *_task = (task_t *) malloc(sizeof(task_t));
-        _task->func = NULL;
-        tqueue_push(pool->queue, _task);
+        tqueue_push(pool, NULL, NULL);
         list_print(_list);
     }
 }
@@ -119,16 +115,11 @@ void cut_func(void *data)
         Llist->size = mid;
 
         /* Create new task for the right list */
-        task_t *_task = (task_t *) malloc(sizeof(task_t));
-        _task->func = cut_func;
-        _task->arg = Rlist;
-        tqueue_push(pool->queue, _task);
+        tqueue_push(pool, cut_func, Rlist);
 
         /* Create new task for the left list */
-        _task = (task_t *) malloc(sizeof(task_t));
-        _task->func = cut_func;
-        _task->arg = Llist;
-        tqueue_push(pool->queue, _task);
+        tqueue_push(pool, cut_func, Llist);
+
     } else {
         pthread_mutex_unlock(&(data_context.mutex));
         merge(merge_sort(Llist));
@@ -138,32 +129,38 @@ void cut_func(void *data)
 static void *task_run(void *data)
 {
     (void) data;
+    task_t _task;
+
     while (1) {
         /* Threads snatch the lock*/
-        pthread_mutex_lock(&(pool->queue->mutex));
+        pthread_mutex_lock(&(pool->mutex));
 
         /* If the task queue is empty then unlock,
            and let other threads come in to be swapped to the wait queue.
            When signal comes, threads wake up and own the lock one by one*/
-        while( pool->queue->size == 0) {
-            pthread_cond_wait(&(pool->queue->cond), &(pool->queue->mutex));
+        while( pool->count == 0) {
+            pthread_cond_wait(&(pool->cond), &(pool->mutex));
         }
-        if (pool->queue->size == 0) break;
+        if (pool->count == 0) break;
 
         /* Thread grab the task*/
-        task_t *_task = tqueue_pop(pool->queue);
+        _task.func = pool->queue[pool->head].func;
+        _task.arg = pool->queue[pool->head].arg;
 
-        /* Unlock */
-        pthread_mutex_unlock(&(pool->queue->mutex));
-
-        if (_task) {
-            if (!_task->func) {
-                tqueue_push(pool->queue, _task);
-                break;
-            } else {
-                _task->func(_task->arg);
-                free(_task);
-            }
+        if (_task.func == NULL) {
+            /* Unlock */
+            pthread_mutex_unlock(&(pool->mutex));
+            tqueue_push(pool,_task.func,_task.arg);
+            break;
+        } else {
+            pool->queue[pool->head].func = NULL;
+            pool->queue[pool->head].arg = NULL;
+            pool->head = (pool->head+1) % pool->size;
+            pool->count -= 1;
+            /* Unlock */
+            pthread_mutex_unlock(&(pool->mutex));
+            /* Run the task*/
+            _task.func(_task.arg);
         }
     }
     pthread_exit(NULL);
@@ -185,7 +182,6 @@ int main(int argc, char const *argv[])
 
     /* Initialize the list*/
     the_list = list_new();
-
     /*==========File Preprocessing==========*/
     /* check file opening*/
     fp = fopen(argv[2],"r");
@@ -212,22 +208,19 @@ int main(int argc, char const *argv[])
     pthread_mutex_init(&(data_context.mutex), NULL);
     data_context.cut_ThrdCount = 0;
     tmp_list = NULL;
-    pool = (tpool_t *) malloc(sizeof(tpool_t));
-    tpool_init(pool, ThrdCount, task_run);
+    pool = (threadpool_t *) malloc(sizeof(threadpool_t));
+    threadpool_init(pool, ThrdCount, TASK_QUEUE_SIZE, task_run);
 
 #if defined(TEST)
     struct timespec start, end;
     double cpu_time;
     clock_gettime(CLOCK_REALTIME, &start);
 #endif
-    /* launch the first task */
-    task_t *_task = (task_t *) malloc(sizeof(task_t));
-    _task->func = cut_func;
-    _task->arg = the_list;
-    tqueue_push(pool->queue, _task);
+    /* Launch the first task */
+    tqueue_push(pool, cut_func, the_list);
 
     /* release thread pool */
-    tpool_free(pool);
+    threadpool_free(pool);
 
 #if defined(TEST)
     clock_gettime(CLOCK_REALTIME, &end);
